@@ -3,6 +3,7 @@ extern crate crypto;
 extern crate regex;
 #[macro_use]
 extern crate clap;
+extern crate bip39;
 
 use crypto::scrypt;
 // use crypto::scrypt::ScryptParams;
@@ -10,6 +11,7 @@ use std::io;
 // use std::io::Read;
 use regex::Regex;
 use clap::{Arg, App, ArgMatches};
+use bip39::{Mnemonic, MnemonicType, Language, Seed};
 
 fn arg_matches<'a>() -> ArgMatches<'a> {
     App::new("scryptseed")
@@ -59,6 +61,7 @@ fn process_passphrase(input : &str) -> String {
 }
 
 fn print_hex(bytes: &[u8]) {
+    print!("Derived key: ");
     for b in bytes.iter() {
         print!("{:x}", b);
     }
@@ -70,8 +73,11 @@ fn main() {
     let mut input = String::new();
     io::stdin().read_line(&mut input).expect("Failed to read passphrase");
     let processed = process_passphrase(&input);
-    println!("Converted phrase: \"{}\"", processed);
+    println!("Normalized phrase: \"{}\"", processed);
     let dk = derive_key(params, &processed);
-    // println!("{:?}", &dk);
     print_hex(&dk);
+    let mnemonic_type = MnemonicType::for_key_size(dk.len() * 8).unwrap();
+    let mnemonic = Mnemonic::from_entropy(&dk, mnemonic_type, Language::English, "").unwrap();
+    // println!("{:?}", &dk);
+    println!("BIP39: {}", mnemonic.get_string());
 }

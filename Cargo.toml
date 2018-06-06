@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Alexey Karakulov <ankarakulov@gmail.com>"]
 
 [dependencies]
-rust-crypto = "0.2.36"
+rust-crypto = "0.2"
 regex = "1.0"
 clap = "2.31"
+bip39 = "0.5"
