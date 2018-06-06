@@ -5,13 +5,14 @@ extern crate regex;
 extern crate clap;
 
 use crypto::scrypt;
+// use crypto::scrypt::ScryptParams;
 use std::io;
-use std::io::Read;
+// use std::io::Read;
 use regex::Regex;
-use clap::{Arg, App};
+use clap::{Arg, App, ArgMatches};
 
-fn main() {
-    let matches = App::new("scryptseed")
+fn arg_matches<'a>() -> ArgMatches<'a> {
+    App::new("scryptseed")
         .arg(Arg::with_name("salt").long("salt").takes_value(true).default_value("")
             .help("Set salt"))
         .arg(Arg::with_name("logN").long("logn").takes_value(true).default_value("19")
@@ -22,27 +23,55 @@ fn main() {
             .help("p (parallelization) param for scrypt"))
         .arg(Arg::with_name("len").long("len").takes_value(true).default_value("16")
             .help("Derived key length in bytes"))
-        .get_matches();
-    let log_n = value_t!(matches, "logN", u8).unwrap_or_else(|e| e.exit());
-    let r = value_t!(matches, "r", u32).unwrap_or_else(|e| e.exit());
-    let p = value_t!(matches, "p", u32).unwrap_or_else(|e| e.exit());
-    let dk_len = value_t!(matches, "len", usize).unwrap_or_else(|e| e.exit());
-    let salt = matches.value_of("salt").unwrap();
+        .get_matches()
+}
 
-    let scrypt_params = scrypt::ScryptParams::new(log_n, r, p);
-    let mut out = vec![0; dk_len];
-    let mut input = String::new();
-    io::stdin().read_to_string(&mut input).expect("Failed to read passphrase");
+struct Params {
+    log_n : u8,
+    r : u32,
+    p : u32,
+    dk_len : usize,
+    salt : String,
+}
+
+impl Params {
+    fn from_matches(matches : ArgMatches) -> Params {
+        let log_n = value_t!(matches, "logN", u8).unwrap_or_else(|e| e.exit());
+        let r = value_t!(matches, "r", u32).unwrap_or_else(|e| e.exit());
+        let p = value_t!(matches, "p", u32).unwrap_or_else(|e| e.exit());
+        let dk_len = value_t!(matches, "len", usize).unwrap_or_else(|e| e.exit());
+        let salt = matches.value_of("salt").unwrap().to_string();
+        Params { log_n : log_n, r : r, p : p, dk_len: dk_len, salt: salt }
+    }
+}
+
+fn derive_key(params : Params, pass : &str) -> Vec<u8> {
+    let mut dk = vec![0; params.dk_len];
+    let scrypt_params = scrypt::ScryptParams::new(params.log_n, params.r, params.p);
+    scrypt::scrypt(pass.as_bytes(), params.salt.as_bytes(), &scrypt_params, &mut dk);
+    dk
+}
+
+fn process_passphrase(input : &str) -> String {
     let re = Regex::new(r"\s+").unwrap();
-    let input1 = re.replace_all(&input, " ");
-    let processed = input1.trim();
-    println!("|{}|", processed);
+    let processed = re.replace_all(input, " ").trim().to_owned();
+    processed
+}
 
-    scrypt::scrypt(processed.as_bytes(), salt.as_bytes(), &scrypt_params, &mut out);
-
-    // let s = &"asteaset"[..];
-    for c in out.iter() {
-        print!("{:x}", c);
+fn print_hex(bytes: &[u8]) {
+    for b in bytes.iter() {
+        print!("{:x}", b);
     }
     println!("");
+}
+
+fn main() {
+    let params = Params::from_matches(arg_matches());
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).expect("Failed to read passphrase");
+    let processed = process_passphrase(&input);
+    println!("Converted phrase: \"{}\"", processed);
+    let dk = derive_key(params, &processed);
+    // println!("{:?}", &dk);
+    print_hex(&dk);
 }
