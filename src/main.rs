@@ -1,4 +1,4 @@
-
+extern crate base64;
 extern crate crypto;
 extern crate regex;
 #[macro_use]
@@ -11,7 +11,7 @@ use std::io;
 // use std::io::Read;
 use regex::Regex;
 use clap::{Arg, App, ArgMatches};
-use bip39::{Mnemonic, MnemonicType, Language, Seed};
+use bip39::{Mnemonic, MnemonicType, Language};
 
 fn arg_matches<'a>() -> ArgMatches<'a> {
     App::new("scryptseed")
@@ -80,4 +80,5 @@ fn main() {
     let mnemonic = Mnemonic::from_entropy(&dk, mnemonic_type, Language::English, "").unwrap();
     // println!("{:?}", &dk);
     println!("BIP39: {}", mnemonic.get_string());
+    println!("base64: {}", base64::encode(&dk));
 }
