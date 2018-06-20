@@ -4,8 +4,19 @@ extern crate regex;
 #[macro_use]
 extern crate clap;
 extern crate bip39;
+extern crate secp256k1;
+extern crate bitcoin;
 
+use bitcoin::util::base58;
+use bitcoin::network::constants::Network;
+use bitcoin::util::address::Address;
+
+use secp256k1::{SecretKey, PublicKey};
 use crypto::scrypt;
+use crypto::pbkdf2;
+use crypto::hmac;
+use crypto::sha2;
+
 // use crypto::scrypt::ScryptParams;
 use std::io;
 // use std::io::Read;
@@ -60,12 +71,32 @@ fn process_passphrase(input : &str) -> String {
     processed
 }
 
-fn print_hex(bytes: &[u8]) {
-    print!("Derived key: ");
+fn print_hex(prefix: &str, bytes: &[u8]) {
+    print!("{}", prefix);
     for b in bytes.iter() {
         print!("{:x}", b);
     }
     println!("");
+}
+
+fn warp(pass: &str, salt: &str) -> Vec<u8> {
+    let mut s1 = vec![0; 32];
+    let scrypt_params = scrypt::ScryptParams::new(18, 8, 1);
+    fn add_byte(s: &str, byte: u8) -> Vec<u8> {
+        let mut bytes = s.as_bytes().to_owned();
+        bytes.push(byte);
+        bytes
+    }
+    scrypt::scrypt(&add_byte(pass, 0x01), &add_byte(salt, 0x01), &scrypt_params, &mut s1);
+    let mut s2 = vec![0; 32];
+    let mut mac = hmac::Hmac::new(sha2::Sha256::new(), &add_byte(pass, 0x02));
+    let _2 : u32 = 2;
+    pbkdf2::pbkdf2(&mut mac, &add_byte(salt, 0x02), _2.pow(16), &mut s2);
+    // let mut dk2 = vec![0; 32];
+    for i in 0..32 {
+        s1[i] ^= s2[i]
+    }
+    s1
 }
 
 fn main() {
@@ -73,9 +104,21 @@ fn main() {
     let mut input = String::new();
     io::stdin().read_line(&mut input).expect("Failed to read passphrase");
     let processed = process_passphrase(&input);
+    println!("Salt: \"{}\"", &params.salt);
     println!("Normalized phrase: \"{}\"", processed);
+    let secp256k1 = secp256k1::Secp256k1::new();
+    let prv_key = warp(&processed, &params.salt);
+    let pub_key = PublicKey::from_secret_key(&secp256k1,
+        &SecretKey::from_slice(&secp256k1, &prv_key).unwrap()).unwrap();
+    // print_hex("Warp:   ", &prv_key);
+    let mut wif : Vec<u8> = vec![0x80];
+    wif.extend(&prv_key);
+    // let mut addr = vec![0x00];
+    // addr.extend(&pub_key[..]);
+    println!("Warp WIF:       {}", &base58::check_encode_slice(&wif));
+    println!("Warp address:   {}", Address::p2upkh(&pub_key, Network::Bitcoin).to_string());
     let dk = derive_key(params, &processed);
-    print_hex(&dk);
+    print_hex("Scrypt: ", &dk);
     let mnemonic_type = MnemonicType::for_key_size(dk.len() * 8).unwrap();
     let mnemonic = Mnemonic::from_entropy(&dk, mnemonic_type, Language::English, "").unwrap();
     // println!("{:?}", &dk);
