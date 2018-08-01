@@ -17,9 +17,7 @@ use crypto::pbkdf2;
 use crypto::hmac;
 use crypto::sha2;
 
-// use crypto::scrypt::ScryptParams;
 use std::io;
-// use std::io::Read;
 use regex::Regex;
 use clap::{Arg, App, ArgMatches, SubCommand};
 use bip39::{Mnemonic, MnemonicType, Language};
@@ -75,7 +73,6 @@ fn warp(pass: &str, salt: &str) -> Vec<u8> {
     let mut mac = hmac::Hmac::new(sha2::Sha256::new(), &add_byte(pass, 0x02));
     let _2 : u32 = 2;
     pbkdf2::pbkdf2(&mut mac, &add_byte(salt, 0x02), _2.pow(16), &mut s2);
-    // let mut dk2 = vec![0; 32];
     for i in 0..32 {
         s1[i] ^= s2[i]
     }
@@ -87,11 +84,8 @@ fn run_warp(pass: &str, salt: &str) {
     let prv_key = warp(pass, salt);
     let pub_key = PublicKey::from_secret_key(&secp256k1,
         &SecretKey::from_slice(&secp256k1, &prv_key).unwrap()).unwrap();
-    // print_hex("Warp:   ", &prv_key);
     let mut wif : Vec<u8> = vec![0x80];
     wif.extend(&prv_key);
-    // let mut addr = vec![0x00];
-    // addr.extend(&pub_key[..]);
     println!("Warp WIF:       {}", &base58::check_encode_slice(&wif));
     println!("Warp address:   {}", Address::p2upkh(&pub_key, Network::Bitcoin).to_string());
 }
@@ -126,7 +120,6 @@ fn run_scrypt(sub_m: &ArgMatches, pass: &str, salt: &str) {
     print_hex("Scrypt: ", &dk);
     let mnemonic_type = MnemonicType::for_key_size(dk.len() * 8).unwrap();
     let mnemonic = Mnemonic::from_entropy(&dk, mnemonic_type, Language::English, "").unwrap();
-    // println!("{:?}", &dk);
     println!("BIP39: {}", mnemonic.get_string());
     println!("base64: {}", base64::encode(&dk));
 }
