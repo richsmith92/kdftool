@@ -24,11 +24,14 @@ use bip39::{Mnemonic, MnemonicType, Language};
 
 fn arg_matches<'a>() -> ArgMatches<'a> {
     App::new("kdftool")
+        .about("Read passphrase (first line from stdin), normalize it (drop extra whitespace) and pass it to KDF")
         .arg(Arg::with_name("salt").long("salt").takes_value(true).default_value("")
             .help("Set salt"))
         .subcommand(SubCommand::with_name("warp")
+            .about("WarpWallet (https://keybase.io/warp/) Bitcoin private key and address")
         )
         .subcommand(SubCommand::with_name("scrypt")
+            .about("Scrypt KDF result in hex, base64, and used as entropy for BIP39 seed")
             .arg(Arg::with_name("logN").long("logn").takes_value(true).default_value("19")
                 .help("log₂N (CPU/memory cost) param for scrypt"))
             .arg(Arg::with_name("r").short("r").takes_value(true).default_value("8")
@@ -44,10 +47,10 @@ fn arg_matches<'a>() -> ArgMatches<'a> {
 fn subcommand_dispatch(app_m: ArgMatches) {
     let mut input = String::new();
     io::stdin().read_line(&mut input).expect("Failed to read passphrase");
-    let pass = process_passphrase(&input);
+    let pass = normalize_passphrase(&input);
     let salt = app_m.value_of("salt").unwrap().to_string();
     println!("Salt: \"{}\"", &salt);
-    println!("Normalized password: \"{}\"", pass);
+    println!("Normalized passphrase: \"{}\"", pass);
 
     match app_m.subcommand() {
         ("warp", Some(_sub_m)) => run_warp(&pass, &salt),
@@ -126,10 +129,9 @@ fn run_scrypt(sub_m: &ArgMatches, pass: &str, salt: &str) {
 
 // Utils
 
-fn process_passphrase(input : &str) -> String {
+fn normalize_passphrase(input : &str) -> String {
     let re = Regex::new(r"\s+").unwrap();
-    let pass = re.replace_all(input, " ").trim().to_owned();
-    pass
+    re.replace_all(input, " ").trim().to_owned()
 }
 
 fn print_hex(prefix: &str, bytes: &[u8]) {
